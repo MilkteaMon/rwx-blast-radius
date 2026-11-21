@@ -8,5 +8,7 @@ RUN git init -q /checkout && \
 FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
 WORKDIR /app
 COPY --from=source /source /opt/sqlglot
-COPY selector_v3.py selector_v2.py select_workers.py dependencies.json lines.json base_profiles.json ./
-CMD ["python", "-B", "/app/selector_v3.py", "/data", "/opt/sqlglot"]
+COPY selector_v3.py selector_v2.py select_workers.py dependencies.json lines.json base_profiles.json ./rwx-submit/
+COPY zero_worker/select_static.py ./zero_worker/
+COPY worker_evidence/run.py worker_evidence/refine.py worker_evidence/base_extra.json ./worker_evidence/
+CMD ["python", "-B", "/app/worker_evidence/run.py", "/data", "/opt/sqlglot"]
