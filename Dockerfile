@@ -10,5 +10,5 @@ WORKDIR /app
 COPY --from=source /source /opt/sqlglot
 COPY selector_v3.py selector_v2.py select_workers.py dependencies.json lines.json base_profiles.json ./rwx-submit/
 COPY zero_worker/select_static.py ./zero_worker/
-COPY worker_evidence/run.py worker_evidence/refine.py worker_evidence/base_extra.json ./worker_evidence/
+COPY worker_evidence/run.py worker_evidence/refine.py worker_evidence/base_extra.json worker_evidence/top25.py worker_evidence/top25_base.json ./worker_evidence/
 CMD ["python", "-B", "/app/worker_evidence/run.py", "/data", "/opt/sqlglot"]

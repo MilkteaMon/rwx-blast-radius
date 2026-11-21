@@ -7,6 +7,8 @@ import re
 import sys
 
 RELEASE = Path(__file__).resolve().parents[1] / "rwx-submit"
+if not (RELEASE / "selector_v3.py").is_file():
+    RELEASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RELEASE))
 from selector_v3 import (
     Experiment, ProfileIndex, apply_file, base_tree, derive_rules, exclusion,
@@ -14,7 +16,7 @@ from selector_v3 import (
 )
 
 
-def rules_for(chunk, source, index, refinement=None, candidates=()):
+def rules_for(chunk, source, index, refinement=None, candidates=(), gate=None, extra=None):
     old = re.search(r"(?m)^--- a/([^\n]+)$", chunk)
     new = re.search(r"(?m)^\+\+\+ b/([^\n]+)$", chunk)
     path = old[1] if old else ""
@@ -28,13 +30,15 @@ def rules_for(chunk, source, index, refinement=None, candidates=()):
             rules = derive_rules(path, tree, new)
             excluded = (refinement.excluded(index, path, original, tree, new, removed, added,
                                              aligned, candidates, rules) if refinement else set())
+            if gate:
+                excluded.update(gate.excluded_python(index, extra, path, tree, new, chunk, candidates, aligned))
             return path, rules, excluded
     except (ValueError, SyntaxError, OSError):
         pass
     return path, [], set()
 
 
-def run(mode, data, source, refinement_factory=None):
+def run(mode, data, source, refinement_factory=None, gate_factory=None):
     if mode == "v3":
         yield from release_run(data, source, RELEASE)
         return
@@ -42,6 +46,7 @@ def run(mode, data, source, refinement_factory=None):
     profile = ProfileIndex(RELEASE / "base_profiles.json", json.loads(inventory.read_text("utf8"))["tests"])
     index = Experiment(inventory, RELEASE, source)
     refinement = refinement_factory(inventory, profile) if refinement_factory else None
+    gate = gate_factory(inventory) if gate_factory else None
     for patch in sorted((data / "commits").glob("*.patch")):
         text = patch.read_text("utf8")
         chunks = [s for s in re.split(r"(?m)(?=^diff --git )", text) if s.startswith("diff --git ")]
@@ -51,8 +56,11 @@ def run(mode, data, source, refinement_factory=None):
             candidates = index.file_selection(chunk, flags)
             if not candidates:
                 continue
+            if gate and chunk.startswith("diff --git a/tests/fixtures/"):
+                candidates = candidates - gate.excluded_fixture(index, chunk, candidates)
             path, rules, excluded = rules_for(chunk, source, index,
-                                             refinement if len(chunks) == 1 else None, candidates)
+                                             refinement if len(chunks) == 1 else None, candidates,
+                                             gate, refinement.extra if gate else None)
             protected = index.readers.get(path, set()) | index.base.uncertain
             for n in candidates:
                 if n in excluded:
